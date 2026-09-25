@@ -10,7 +10,7 @@ export default defineConfig({
     hookTimeout: 60_000,
     pool: "forks",
     forks: {
-      singleFork: true, // share the in-memory Mongo across files
+      singleFork: true,
     },
   },
 });

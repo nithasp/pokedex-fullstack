@@ -11,7 +11,7 @@ async function touch(reason: string): Promise<void> {
     console.log(`[keep-alive] ${reason} — DB read ok in ${ms}ms`);
   } catch (err) {
     // Never throw: a failed keep-alive must not take the server down. If the
-    // cluster really is unreachable, the health endpoint surfaces it as a 503.
+    // cluster really is unreachable, /health surfaces it as a 503.
     console.error(`[keep-alive] ${reason} — DB read failed:`, err);
   }
 }
@@ -20,18 +20,12 @@ async function touch(reason: string): Promise<void> {
  * Keep an Atlas free-tier (M0) cluster from hitting its "60 days idle →
  * auto-pause" rule by issuing a real read on a fixed interval.
  *
- * Two deliberate choices:
+ * The immediate boot-time call is load-bearing: `setInterval` restarts from
+ * zero on every redeploy and crash-restart, so a long interval on a service
+ * that redeploys often would otherwise almost never fire.
  *
- * 1. It fires once immediately at boot, not only after the first interval.
- *    `setInterval` restarts from zero on every redeploy/crash-restart, so a
- *    long interval on a service that redeploys often would otherwise almost
- *    never fire.
- * 2. The timer is `unref`'d, so it never holds the process open during
- *    shutdown.
- *
- * This covers the cluster for as long as the server itself is running. It
- * cannot help while the server is stopped — for that, point an external
- * uptime monitor at `GET /health`, which performs the same read on demand.
+ * This only covers the cluster while the server is running. For the stopped
+ * case, point an external uptime monitor at `GET /health`.
  */
 export function startKeepAlive(): void {
   const hours = config.keepAliveIntervalHours;

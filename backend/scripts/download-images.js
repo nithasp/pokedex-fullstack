@@ -10,32 +10,24 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
-// ── Config ────────────────────────────────────────────────────────────────────
-
 const TOTAL = 898;
-const CONCURRENCY = 10; // parallel downloads at a time
+const CONCURRENCY = 10;
 
 const BASE_URLS = {
   full: "https://assets.pokemon.com/assets/cms2/img/pokedex/full",
   detail: "https://assets.pokemon.com/assets/cms2/img/pokedex/detail",
 };
 
-// Resolve output dirs relative to this script's location (backend/scripts/)
 const OUT_DIR = path.resolve(__dirname, "../public/images/pokemon");
 const DIRS = {
   full: path.join(OUT_DIR, "full"),
   detail: path.join(OUT_DIR, "detail"),
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Zero-pad id to 3 digits: 1 → "001", 10 → "010", 100 → "100" */
 const pad = (id) => String(id).padStart(3, "0");
 
-/** Download a single URL to destPath. Resolves true on success, false on skip. */
 function download(url, destPath) {
   return new Promise((resolve, reject) => {
-    // Skip if already downloaded
     if (fs.existsSync(destPath)) {
       resolve("skip");
       return;
@@ -47,7 +39,6 @@ function download(url, destPath) {
       if (res.statusCode === 302 || res.statusCode === 301) {
         file.close();
         fs.unlinkSync(destPath);
-        // Follow redirect manually
         https.get(res.headers.location, (r2) => {
           if (r2.statusCode !== 200) {
             file.close();
@@ -82,7 +73,6 @@ function download(url, destPath) {
   });
 }
 
-/** Run tasks with a concurrency limit. */
 async function pool(tasks, concurrency) {
   const results = [];
   let idx = 0;
@@ -99,10 +89,7 @@ async function pool(tasks, concurrency) {
   return results;
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-
 async function main() {
-  // Ensure output directories exist
   Object.values(DIRS).forEach((d) => fs.mkdirSync(d, { recursive: true }));
 
   const types = ["full", "detail"];
@@ -111,7 +98,6 @@ async function main() {
   let failed = 0;
   const errors = [];
 
-  // Build flat task list: [full/001, detail/001, full/002, detail/002, ...]
   const tasks = [];
   for (let id = 1; id <= TOTAL; id++) {
     const file = `${pad(id)}.png`;

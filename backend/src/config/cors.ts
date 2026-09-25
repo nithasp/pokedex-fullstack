@@ -1,16 +1,10 @@
 import type { CorsOptions } from "cors";
 
 /**
- * Build the `origin` option for the `cors` middleware from a parsed config value.
+ * Build the `origin` option for the `cors` middleware.
  *
- * Behaviour:
- * - `"*"` → reflect any origin (no allowlist).
- * - `string | string[]` → exact-match against the list. Trailing slashes are
- *   ignored so `https://foo.com/` and `https://foo.com` both match.
- * - Requests without an `Origin` header (curl, server-to-server, same-origin)
- *   are always allowed.
- * - Rejected origins are logged so Railway/Vercel logs reveal the exact value
- *   the browser sent — quick to spot env-var typos.
+ * Requests without an `Origin` header (curl, server-to-server, same-origin)
+ * are always allowed — that branch is intentional, not a missing check.
  */
 export function buildCorsOriginHandler(
   corsOrigin: "*" | string | string[]

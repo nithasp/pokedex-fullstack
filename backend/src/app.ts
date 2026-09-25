@@ -25,9 +25,8 @@ export function buildApp({ corsOrigin = "*", enableLogging = false }: BuildAppOp
     res.json({ status: "ok", service: "pokedex-backend" });
   });
 
-  // Deep health check: unlike `/`, this actually reads from MongoDB, so it
-  // doubles as the endpoint an external uptime monitor hits to keep an Atlas
-  // free-tier (M0) cluster from auto-pausing after 60 days idle.
+  // Deep health check — the endpoint an external uptime monitor hits to keep
+  // an Atlas free-tier (M0) cluster from auto-pausing after 60 days idle.
   //
   // `no-store` is load-bearing. Every other route sends a long
   // `Cache-Control`, so a scheduled ping against e.g. `/api/pokemon?limit=1`

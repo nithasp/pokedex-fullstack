@@ -1,6 +1,5 @@
 /**
  * Uploads all local Pokemon images to Cloudflare R2 (S3-compatible).
- * After this runs, call update-image-urls.js with your R2 public URL.
  *
  * Setup:
  *   Add these to backend/.env:
@@ -27,8 +26,6 @@ if (process.platform === "win32") {
 }
 
 require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
-
-// ── Config ────────────────────────────────────────────────────────────────────
 
 const TOTAL = 898;
 const CONCURRENCY = 10;
@@ -59,9 +56,6 @@ const s3 = new S3Client({
 
 const pad = (id) => String(id).padStart(3, "0");
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Check if a key already exists in R2. Returns true if it does. */
 async function existsInR2(key) {
   try {
     await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
@@ -71,7 +65,6 @@ async function existsInR2(key) {
   }
 }
 
-/** Upload a single file to R2. */
 async function upload(localPath, r2Key) {
   const body = fs.readFileSync(localPath);
   await s3.send(
@@ -86,7 +79,6 @@ async function upload(localPath, r2Key) {
   );
 }
 
-/** Run tasks with a concurrency limit. */
 async function pool(tasks, concurrency) {
   let idx = 0;
   async function worker() {
@@ -96,8 +88,6 @@ async function pool(tasks, concurrency) {
   }
   await Promise.all(Array.from({ length: concurrency }, worker));
 }
-
-// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   if (DRY_RUN) console.log("\n[DRY RUN] No files will be uploaded.\n");
