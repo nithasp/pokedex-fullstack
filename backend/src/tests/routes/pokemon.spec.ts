@@ -45,6 +45,26 @@ describe("GET /", () => {
   });
 });
 
+describe("GET /health", () => {
+  it("reports the database as reachable", async () => {
+    const res = await request(app).get("/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+    expect(res.body.db).toBe("connected");
+    expect(typeof res.body.latencyMs).toBe("number");
+  });
+
+  // The whole point of /health is to reach Mongo on every call. If it ever
+  // picks up the shared cache header, an edge cache would answer for it and
+  // the Atlas keep-alive ping would silently stop touching the cluster.
+  it("is never cached", async () => {
+    const res = await request(app).get("/health");
+
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+});
+
 describe("GET /api/pokemon", () => {
   it("returns paginated list with default page/limit", async () => {
     const res = await request(app).get("/api/pokemon");

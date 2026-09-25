@@ -4,6 +4,7 @@ import express, { Express } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import { buildCorsOriginHandler } from "./config/cors";
+import { pingDB } from "./config/db";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler";
 import { pokemonRouter } from "./routes/pokemon-routes";
 import type { BuildAppOptions } from "./types/build-app-options.type";
@@ -22,6 +23,28 @@ export function buildApp({ corsOrigin = "*", enableLogging = false }: BuildAppOp
 
   app.get("/", (_req, res) => {
     res.json({ status: "ok", service: "pokedex-backend" });
+  });
+
+  // Deep health check: unlike `/`, this actually reads from MongoDB, so it
+  // doubles as the endpoint an external uptime monitor hits to keep an Atlas
+  // free-tier (M0) cluster from auto-pausing after 60 days idle.
+  //
+  // `no-store` is load-bearing. Every other route sends a long
+  // `Cache-Control`, so a scheduled ping against e.g. `/api/pokemon?limit=1`
+  // would be served from the Cloudflare edge and never reach the database --
+  // the cluster would keep idling while the monitor reported success.
+  app.get("/health", async (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      const latencyMs = await pingDB();
+      res.json({ status: "ok", db: "connected", latencyMs });
+    } catch (err) {
+      res.status(503).json({
+        status: "error",
+        db: "unreachable",
+        message: err instanceof Error ? err.message : "Unknown database error",
+      });
+    }
   });
 
   app.use("/api/pokemon", pokemonRouter);
