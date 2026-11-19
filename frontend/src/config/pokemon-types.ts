@@ -27,3 +27,28 @@ export const TYPES_COLOR: Record<PokemonTypeName, string> = {
 
 export const getTypeColor = (type: string): string =>
   TYPES_COLOR[type.toLowerCase() as PokemonTypeName] ?? "#666";
+
+/** Display order of the type tiles in the advanced filter. */
+export const POKEMON_TYPE_NAMES: readonly PokemonTypeName[] = [
+  "normal",
+  "grass",
+  "fire",
+  "water",
+  "electric",
+  "bug",
+  "flying",
+  "rock",
+  "poison",
+  "ground",
+  "ice",
+  "fighting",
+  "psychic",
+  "ghost",
+  "dragon",
+  "dark",
+  "steel",
+  "fairy",
+];
+
+export const getTypeLabel = (type: PokemonTypeName): string =>
+  type.charAt(0).toUpperCase() + type.slice(1);

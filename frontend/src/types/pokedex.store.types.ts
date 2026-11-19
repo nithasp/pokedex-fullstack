@@ -1,8 +1,19 @@
+import type { PokemonFilters } from "./pokemon-filter.types";
 import type { RawPokemon } from "./pokemon.types";
 
 export interface PokedexUIState {
-  /** Submitted search term — drives the main grid filter. */
-  searchTerm: string;
+  /**
+   * Live text of the home search box. Kept in the store rather than in local
+   * component state so the advanced filter dialog can pick up a term the user
+   * typed but has not submitted yet, and so applying filters from the dialog
+   * keeps the box in sync.
+   */
+  searchInput: string;
+  /**
+   * Applied filters — drive the main grid. `filters.query` is the submitted
+   * search term; the remaining criteria come from the advanced filter dialog.
+   */
+  filters: PokemonFilters;
   /** Saved scroll position for returning to the home page from a detail page. */
   scrollTopPosition: number;
   /**
@@ -27,12 +38,19 @@ export interface PokedexUIState {
 }
 
 export interface PokedexUIActions {
+  setSearchInput: (value: string) => void;
   /**
-   * Apply a new submitted search term. Resets the home grid back to the first
-   * page and to the top of the viewport so search results aren't shown
-   * mid-scroll under a stale offset.
+   * Apply a new submitted search term, keeping every other active filter.
+   * Resets the home grid back to the first page and to the top of the
+   * viewport so search results aren't shown mid-scroll under a stale offset.
    */
   setSearchTerm: (term: string) => void;
+  /**
+   * Replace the whole filter set (advanced filter dialog, active-filter
+   * chips). Resets the grid like `setSearchTerm` and mirrors the new query
+   * into the search box.
+   */
+  setFilters: (filters: PokemonFilters) => void;
   setScrollTopPosition: (y: number) => void;
   setPokemonList: (list: RawPokemon[]) => void;
   /** Reveal the next chunk of cards in the home grid. */

@@ -84,17 +84,3 @@ export const findRawPokemonById = (
   list: RawPokemon[],
   id: number
 ): RawPokemon | undefined => list.find((item) => item._id === id);
-
-/**
- * Case-insensitive name filter used by both the home grid (submitted search
- * term) and the search dropdown (debounced as-you-type term). Returns the
- * full list when the term is empty.
- */
-export const filterPokemonByName = (
-  list: RawPokemon[],
-  term: string
-): RawPokemon[] => {
-  const normalized = term.trim().toLowerCase();
-  if (!normalized) return list;
-  return list.filter((item) => item.name.toLowerCase().includes(normalized));
-};

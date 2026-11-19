@@ -1,13 +1,19 @@
 import { create } from "zustand";
+import {
+  DEFAULT_POKEMON_FILTERS,
+  arePokemonFiltersEqual,
+} from "@/shared/selectors/pokemon-filter.selectors";
 import { DEFAULT_PAGE_LIMIT } from "@/shared/utils/pagination";
 import type {
   PokedexUIActions,
   PokedexUIState,
 } from "@/types/pokedex.store.types";
+import type { PokemonFilters } from "@/types/pokemon-filter.types";
 import type { RawPokemon } from "@/types/pokemon.types";
 
 const INITIAL_STATE: PokedexUIState = {
-  searchTerm: "",
+  searchInput: "",
+  filters: DEFAULT_POKEMON_FILTERS,
   scrollTopPosition: 0,
   pokemonList: [],
   isPokemonListLoaded: false,
@@ -18,16 +24,30 @@ export const usePokedexStore = create<PokedexUIState & PokedexUIActions>(
   (set) => ({
     ...INITIAL_STATE,
 
+    setSearchInput: (value: string) => set({ searchInput: value }),
     setSearchTerm: (term: string) =>
       set((state) =>
-        state.searchTerm === term
+        state.filters.query === term
           ? state
           : {
-              searchTerm: term,
+              filters: { ...state.filters, query: term },
               homeVisibleCount: DEFAULT_PAGE_LIMIT,
               scrollTopPosition: 0,
             }
       ),
+    setFilters: (filters: PokemonFilters) =>
+      set((state) => {
+        const searchInput = filters.query;
+        if (arePokemonFiltersEqual(state.filters, filters)) {
+          return state.searchInput === searchInput ? state : { searchInput };
+        }
+        return {
+          filters,
+          searchInput,
+          homeVisibleCount: DEFAULT_PAGE_LIMIT,
+          scrollTopPosition: 0,
+        };
+      }),
     setScrollTopPosition: (y: number) => set({ scrollTopPosition: y }),
     setPokemonList: (list: RawPokemon[]) =>
       set({ pokemonList: list, isPokemonListLoaded: true }),
@@ -39,11 +59,20 @@ export const usePokedexStore = create<PokedexUIState & PokedexUIActions>(
   })
 );
 
-export const useSearchTerm = () =>
-  usePokedexStore((state) => state.searchTerm);
+export const useSearchInput = () =>
+  usePokedexStore((state) => state.searchInput);
+
+export const useSetSearchInput = () =>
+  usePokedexStore((state) => state.setSearchInput);
 
 export const useSetSearchTerm = () =>
   usePokedexStore((state) => state.setSearchTerm);
+
+export const usePokemonFilters = () =>
+  usePokedexStore((state) => state.filters);
+
+export const useSetPokemonFilters = () =>
+  usePokedexStore((state) => state.setFilters);
 
 export const useScrollTopPosition = () =>
   usePokedexStore((state) => state.scrollTopPosition);

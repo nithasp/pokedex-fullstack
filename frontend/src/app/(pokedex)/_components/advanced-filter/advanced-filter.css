@@ -1,0 +1,2421 @@
+/* ==========================================================================
+ * Advanced filter ("Search in Detail")
+ *
+ * Palette and shapes come from the rest of the site: the frame blue
+ * (#436a96), the glow / label cyans (#9be1ff, #b3eafe), the search-button
+ * cyan (#b4ebff) and the dark navy panels (#0a141e).
+ *
+ * Elements that are animated from script never carry a CSS transform of their
+ * own — hover / pressed transforms live on a nested element instead — so an
+ * entrance, or an inline transform left behind by a tween, can never cancel
+ * a CSS state.
+ *
+ * Pure hover styles sit inside `@media (hover: hover)`: on touch screens a
+ * tapped element stays "hovered", which would make a tile that was just
+ * switched off still look half-selected.
+ * ========================================================================== */
+
+.af-scope {
+  --af-line: #436a96;
+  --af-glow: #9be1ff;
+  --af-label: #b3eafe;
+  --af-accent: #b4ebff;
+  --af-on-accent: #04233a;
+  --af-muted: #bccfe0;
+  --af-placeholder: rgba(179, 234, 254, 0.75);
+  --af-radius: 22px;
+  --af-thumb: 24px;
+}
+
+.af-scope :focus-visible {
+  outline: 2px solid var(--af-glow);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+ * Home page: search toolbar, trigger button, filter results
+ * ========================================================================== */
+
+/* The search bar with the trigger to its right. Where the screen is wide
+   enough for it, an empty pseudo-element takes as much room on the left as
+   the trigger's side does on the right, which keeps the search bar itself
+   centred under the title; elsewhere the two are centred as a pair. */
+.af-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.af-entry {
+  display: flex;
+  flex: none;
+}
+
+@media (min-width: 1200px) {
+  .af-toolbar::before {
+    content: "";
+    flex: 1 1 0;
+  }
+
+  .af-entry {
+    flex: 1 1 0;
+  }
+}
+
+.af-trigger {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  /* As tall as the search bar it sits next to. */
+  height: 40px;
+  padding: 0 16px 0 14px;
+  border: 2px solid var(--af-line);
+  border-radius: 50px;
+  background: rgba(5, 11, 18, 0.55);
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+/* A brighter rim while advanced filters are applied. */
+.af-trigger[data-filtered="true"] {
+  border-color: rgba(155, 225, 255, 0.7);
+}
+
+.af-trigger:hover,
+.af-trigger[aria-expanded="true"] {
+  border-color: var(--af-glow);
+  background: #000;
+  box-shadow: 0 0 18px rgba(155, 225, 255, 0.35);
+}
+
+.af-trigger__icon {
+  width: 22px;
+  height: 22px;
+  color: var(--af-label);
+}
+
+.af-knob {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.af-trigger:hover .af-knob--1,
+.af-trigger[aria-expanded="true"] .af-knob--1 {
+  transform: translateX(-7px);
+}
+
+.af-trigger:hover .af-knob--2,
+.af-trigger[aria-expanded="true"] .af-knob--2 {
+  transform: translateX(7px);
+}
+
+.af-trigger:hover .af-knob--3,
+.af-trigger[aria-expanded="true"] .af-knob--3 {
+  transform: translateX(-8px);
+}
+
+.af-trigger__badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--af-accent);
+  box-shadow: 0 0 10px rgba(155, 225, 255, 0.6);
+  color: var(--af-on-accent);
+  font-size: 15px;
+  line-height: 22px;
+  letter-spacing: 0;
+  text-align: center;
+  animation: af-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* What the grid is filtered by: a panel in the style of the dialog, holding
+   the number of pokemon left, a chip per filter and a way to drop them all.
+   It is only as wide as its contents, and wraps the chips when it must. */
+.af-active {
+  display: flex;
+  align-items: center;
+  gap: 10px 16px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 16px auto 0;
+  padding: 10px 12px 10px 20px;
+  border: 1.5px solid rgba(112, 172, 232, 0.6);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      380px 130px at 0% 0%,
+      rgba(67, 106, 150, 0.36),
+      transparent 70%
+    ),
+    radial-gradient(
+      300px 110px at 100% 100%,
+      rgba(40, 84, 140, 0.22),
+      transparent 70%
+    ),
+    linear-gradient(180deg, rgba(9, 18, 29, 0.9), rgba(5, 11, 18, 0.92));
+  box-shadow:
+    0 0 22px rgba(77, 150, 220, 0.28),
+    0 12px 28px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(155, 225, 255, 0.12),
+    inset 0 0 26px rgba(67, 106, 150, 0.2);
+  /* Plays when the panel mounts, i.e. when the first filter is applied. */
+  animation: af-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.af-active__count {
+  display: inline-flex;
+  flex: none;
+  /* The number is larger than the words beside it; they share a baseline. */
+  align-items: baseline;
+  gap: 8px;
+  color: var(--af-label);
+  font-size: 19px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* The same glowing diamond that marks the sections of the dialog. */
+.af-active__count::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  background: var(--af-glow);
+  box-shadow: 0 0 8px var(--af-glow);
+  transform: rotate(45deg);
+}
+
+.af-active[data-empty="true"] .af-active__count {
+  color: wheat;
+}
+
+/* The number: larger than the words and in the colour of the page title.
+   The site's serif ships in one weight, so `strong` must not ask for a bold
+   that the browser would have to fake. */
+.af-active__number {
+  color: wheat;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 12px rgba(245, 222, 179, 0.4);
+  animation: af-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.af-active__divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 2px 0;
+  background: linear-gradient(
+    180deg,
+    rgba(112, 172, 232, 0),
+    rgba(112, 172, 232, 0.65),
+    rgba(112, 172, 232, 0)
+  );
+}
+
+.af-active__chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.af-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 7px 0 12px;
+  border: 1.5px solid rgba(112, 172, 232, 0.5);
+  border-radius: 17px;
+  background: rgba(67, 106, 150, 0.22);
+  color: #fff;
+  font-size: 17px;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    box-shadow 0.25s;
+  /* Plays when a chip mounts, i.e. when its filter has just been applied. */
+  animation: af-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation-delay: calc(var(--af-order, 0) * 45ms);
+}
+
+@media (hover: hover) {
+  .af-chip:hover {
+    border-color: var(--af-glow);
+    background: #000;
+    box-shadow: 0 0 12px rgba(155, 225, 255, 0.3);
+  }
+}
+
+/* A chip never grows wider than the panel: a long list of values is cut short
+   with an ellipsis (the whole list is in the chip's tooltip). */
+.af-chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "Type:", "Region:" and so on, set apart from the values after it. */
+.af-chip__title {
+  color: var(--af-label);
+}
+
+/* A type's gem, in line right before its name. */
+.af-chip__gem {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  border-radius: 6px;
+  background: var(--type-color);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  vertical-align: -4px;
+}
+
+.af-chip__gem svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.95));
+}
+
+.af-chip__remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(155, 225, 255, 0.14);
+  color: var(--af-label);
+  transition:
+    background-color 0.25s,
+    color 0.25s;
+}
+
+.af-chip__remove svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+@media (hover: hover) {
+  .af-chip:hover .af-chip__remove {
+    background: var(--af-accent);
+    color: var(--af-on-accent);
+  }
+}
+
+.af-active__clear {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px 0 11px;
+  border: 1.5px solid var(--af-line);
+  border-radius: 17px;
+  color: #fff;
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+.af-active__clear svg {
+  width: 16px;
+  height: 16px;
+  color: var(--af-label);
+}
+
+@media (hover: hover) {
+  .af-active__clear:hover {
+    border-color: var(--af-glow);
+    background: #000;
+    box-shadow: 0 0 12px rgba(155, 225, 255, 0.3);
+  }
+}
+
+/* ==========================================================================
+ * Dialog shell
+ * ========================================================================== */
+
+.af-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  color-scheme: dark;
+  font-size: 18px;
+  overflow: hidden;
+}
+
+/* Only when open: an author `display` would otherwise un-hide a closed dialog. */
+.af-dialog[open] {
+  display: grid;
+  /* `minmax(0, ...)`: the track may be narrower than the panel's min-content. */
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+}
+
+/* The dimmed layer is a real element so its fade can be animated. */
+.af-dialog::backdrop {
+  background: transparent;
+}
+
+.af-dialog ::selection {
+  background: rgba(155, 225, 255, 0.35);
+}
+
+.af-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 90% at 50% 40%,
+    rgba(4, 12, 22, 0.66),
+    rgba(1, 4, 8, 0.9)
+  );
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* The panel keeps a compositor layer of its own for as long as the dialog is
+   open, so growing in and collapsing back out never repaint it. */
+.af-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(940px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  will-change: transform, opacity;
+}
+
+/* The entrance goes through three states (`data-intro`, set from script).
+   First only the bare panel is shown: a frame that is cheap to paint, so it
+   reaches the screen right after the click. */
+.af-dialog:not([data-intro]) .af-surface > * {
+  visibility: hidden;
+}
+
+/* Two frames later the contents come in ("playing"). Every piece that is
+   animated gets a compositor layer of its own for that, so moving and fading
+   them is pure compositing; they are all handed back at once when the intro
+   is "done". */
+.af-dialog[data-intro="playing"] [data-anim] {
+  will-change: transform, opacity;
+}
+
+.af-surface {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1.5px solid rgba(112, 172, 232, 0.5);
+  border-radius: var(--af-radius);
+  background:
+    radial-gradient(
+      560px 280px at 0% 0%,
+      rgba(77, 121, 170, 0.34),
+      transparent 70%
+    ),
+    radial-gradient(
+      620px 340px at 100% 100%,
+      rgba(49, 97, 158, 0.22),
+      transparent 70%
+    ),
+    linear-gradient(180deg, rgba(16, 30, 48, 0.93), rgba(9, 20, 32, 0.95)),
+    url("/images/pokemon_bg.jpg") center / cover;
+  box-shadow:
+    0 0 26px rgba(77, 150, 220, 0.32),
+    0 30px 80px rgba(0, 0, 0, 0.7),
+    inset 0 0 60px rgba(77, 121, 170, 0.2);
+}
+
+/* Line of light that GSAP draws around the panel as it opens. It repaints on
+   every frame of that, so it lives on a layer of its own, which GSAP removes
+   once the line has faded. */
+.af-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.af-frame__trace {
+  x: 0.75px;
+  y: 0.75px;
+  width: calc(100% - 1.5px);
+  height: calc(100% - 1.5px);
+  rx: calc(var(--af-radius) - 0.75px);
+  fill: none;
+  stroke: #dff6ff;
+  stroke-width: 2;
+  stroke-dasharray: 1;
+  opacity: 0;
+}
+
+/* Light that keeps circling the frame afterwards. Only transforms move, so
+   the compositor runs it without repainting anything. */
+.af-orbit {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* Whatever is in here only shows through a ring as thin as the border. */
+.af-orbit__ring {
+  display: none;
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: var(--af-radius);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+  .af-orbit__ring {
+    display: block;
+  }
+}
+
+/* As large as the panel, so moving a carrier by its own size walks the light
+   on its top-left corner along the border. */
+.af-orbit__carrier {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.af-orbit__streak,
+.af-orbit__halo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+}
+
+/* Seen through the ring, this wide glow becomes a streak along the border. */
+.af-orbit__streak {
+  width: 300px;
+  height: 300px;
+  margin: -150px 0 0 -150px;
+  background: radial-gradient(
+    closest-side,
+    #f4fcff 0%,
+    #c9efff 22%,
+    rgba(111, 200, 247, 0.6) 52%,
+    rgba(111, 200, 247, 0) 100%
+  );
+}
+
+.af-orbit__halo {
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  background: radial-gradient(
+    closest-side,
+    rgba(236, 250, 255, 0.62) 0%,
+    rgba(111, 200, 247, 0.26) 38%,
+    rgba(111, 200, 247, 0) 100%
+  );
+}
+
+.af-scan {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 110px;
+  background: linear-gradient(
+    180deg,
+    rgba(155, 225, 255, 0) 0%,
+    rgba(155, 225, 255, 0.07) 60%,
+    rgba(155, 225, 255, 0.32) 97%,
+    #e8f9ff 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+ * Header
+ * ========================================================================== */
+
+.af-header {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.af-tab-glow {
+  filter: drop-shadow(0 0 7px rgba(120, 200, 255, 0.5));
+}
+
+/* Angled title plate. The bright layer peeks out along the slanted and the
+   bottom edge of the dark layer on top of it, which reads as a lit border. */
+.af-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 58px;
+  padding: 0 66px 0 26px;
+  background: linear-gradient(
+    90deg,
+    rgba(155, 225, 255, 0.55),
+    rgba(155, 225, 255, 0.95)
+  );
+  clip-path: polygon(0 0, 100% 0, calc(100% - 40px) 100%, 0 100%);
+}
+
+.af-tab::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 1.5px;
+  background: linear-gradient(100deg, #24456a 0%, #142b45 55%, #0c1b2d 100%);
+  box-shadow: inset 0 -14px 18px -12px rgba(155, 225, 255, 0.4);
+  clip-path: polygon(
+    0 0,
+    calc(100% - 1.8px) 0,
+    calc(100% - 40.8px) 100%,
+    0 100%
+  );
+}
+
+.af-tab__icon {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  color: var(--af-label);
+}
+
+.af-title {
+  position: relative;
+  color: wheat;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 14px rgba(245, 222, 179, 0.3);
+}
+
+/* One span per letter, so the entrance can stagger them. `pre` keeps the
+   span that holds the space between the words from collapsing. */
+.af-title span {
+  display: inline-block;
+  white-space: pre;
+}
+
+.af-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin: 9px 14px 0 0;
+  border: 2px solid var(--af-line);
+  border-radius: 50%;
+  background: rgba(5, 11, 18, 0.6);
+  color: var(--af-label);
+  cursor: pointer;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    box-shadow 0.25s,
+    color 0.25s;
+}
+
+@media (hover: hover) {
+  .af-close:hover {
+    border-color: var(--af-glow);
+    background: #000;
+    box-shadow: 0 0 14px rgba(155, 225, 255, 0.45);
+    color: #fff;
+  }
+}
+
+.af-close svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (hover: hover) {
+  .af-close:hover svg {
+    transform: rotate(90deg);
+  }
+}
+
+/* ==========================================================================
+ * Body
+ * ========================================================================== */
+
+.af-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.af-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 14px 34px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.af-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.af-label-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.af-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--af-label);
+  font-size: 21px;
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.af-label::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  background: var(--af-glow);
+  box-shadow: 0 0 8px var(--af-glow);
+  transform: rotate(45deg);
+}
+
+.af-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(67, 106, 150, 0.8),
+    rgba(67, 106, 150, 0)
+  );
+}
+
+.af-split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
+  gap: 20px 36px;
+}
+
+/* --- Name / number search ------------------------------------------------ */
+
+.af-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 50px;
+  padding: 0 5px 0 22px;
+  border: 1.5px solid var(--af-line);
+  border-radius: 25px;
+  background: rgba(3, 8, 14, 0.72);
+  box-shadow: inset 0 0 14px rgba(67, 106, 150, 0.25);
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+.af-search:focus-within {
+  border-color: var(--af-glow);
+  box-shadow:
+    0 0 0 3px rgba(155, 225, 255, 0.14),
+    0 0 18px rgba(155, 225, 255, 0.28),
+    inset 0 0 14px rgba(67, 106, 150, 0.3);
+}
+
+.af-search__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: transparent;
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  text-transform: capitalize;
+}
+
+.af-search__input:focus-visible {
+  outline: none;
+}
+
+.af-search__input::placeholder {
+  color: var(--af-placeholder);
+  text-transform: none;
+}
+
+.af-icon-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--af-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+@media (hover: hover) {
+  .af-icon-button:hover {
+    background: rgba(155, 225, 255, 0.14);
+    color: #fff;
+  }
+}
+
+.af-icon-button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.6;
+}
+
+.af-search__submit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--af-accent);
+  box-shadow: 0 0 12px rgba(155, 225, 255, 0.4);
+  color: #1787d9;
+  cursor: pointer;
+  transition:
+    background-color 0.25s,
+    box-shadow 0.25s;
+}
+
+@media (hover: hover) {
+  .af-search__submit:hover {
+    background: #d9f6ff;
+    box-shadow: 0 0 18px rgba(155, 225, 255, 0.7);
+  }
+}
+
+.af-search__submit svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.6;
+}
+
+/* --- Type tiles ---------------------------------------------------------- */
+
+.af-match {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--af-muted);
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.af-match__track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 30px;
+  padding: 2px;
+  border: 1.5px solid var(--af-line);
+  border-radius: 15px;
+  background: rgba(3, 8, 14, 0.72);
+}
+
+.af-match__thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: 12px;
+  background: var(--af-accent);
+  box-shadow: 0 0 10px rgba(155, 225, 255, 0.5);
+  transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.af-match__track[data-mode="all"] .af-match__thumb {
+  transform: translateX(100%);
+}
+
+.af-match__option {
+  position: relative;
+  min-width: 52px;
+  padding: 0 12px;
+  border-radius: 12px;
+  color: var(--af-label);
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: color 0.25s;
+}
+
+.af-match__option[aria-checked="true"] {
+  color: var(--af-on-accent);
+}
+
+.af-tiles {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.af-tile {
+  /* Accent for the selected state: the type's own hue, lifted to a lightness
+     that glows on the dark panel even for ghost, poison or dark. Custom
+     properties accept any value, so the fallbacks need `@supports`. */
+  --type-edge: var(--type-color);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 2px 7px;
+  border: 1.5px solid rgba(67, 106, 150, 0.55);
+  border-radius: 12px;
+  background: rgba(10, 20, 30, 0.55);
+  color: #c9dcec;
+  cursor: pointer;
+  transition:
+    background-color 0.22s,
+    border-color 0.22s,
+    box-shadow 0.22s,
+    color 0.22s;
+}
+
+@supports (color: color-mix(in srgb, red 50%, white)) {
+  .af-tile {
+    --type-edge: color-mix(in srgb, var(--type-color) 58%, white);
+  }
+}
+
+@supports (color: oklch(from red l c h)) {
+  .af-tile {
+    --type-edge: oklch(
+      from var(--type-color) clamp(0.74, calc(l + 0.18), 0.92)
+        calc(c * 1.15 + 0.03) h
+    );
+  }
+}
+
+/* The entrance tween drives the tiles' opacity, so their own opacity
+   transition (dimming in "both" mode) only switches on afterwards. */
+.af-dialog[data-intro="done"] .af-tile {
+  transition:
+    background-color 0.22s,
+    border-color 0.22s,
+    box-shadow 0.22s,
+    color 0.22s,
+    opacity 0.22s;
+}
+
+@media (hover: hover) {
+  .af-tile:hover {
+    border-color: rgba(155, 225, 255, 0.75);
+    background: rgba(20, 36, 54, 0.75);
+    color: #fff;
+  }
+}
+
+.af-tile[aria-pressed="true"] {
+  border-color: var(--type-edge);
+  background: rgba(10, 20, 30, 0.8);
+  background: color-mix(in srgb, var(--type-color) 20%, rgba(10, 20, 30, 0.85));
+  box-shadow:
+    0 0 0 1px var(--type-edge),
+    0 0 16px color-mix(in srgb, var(--type-edge) 50%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--type-color) 30%, transparent);
+  color: #fff;
+}
+
+.af-tile[aria-disabled="true"] {
+  border-color: rgba(67, 106, 150, 0.3);
+  background: rgba(10, 20, 30, 0.35);
+  color: #c9dcec;
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.af-tile__lift {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (hover: hover) {
+  .af-tile:hover .af-tile__lift {
+    transform: translateY(-2px);
+  }
+}
+
+.af-tile[aria-disabled="true"] .af-tile__lift {
+  transform: none;
+}
+
+.af-tile__gem {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--type-color);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -7px 10px rgba(0, 0, 0, 0.22),
+    0 2px 5px rgba(0, 0, 0, 0.55);
+}
+
+/* White glyph with a dark edge, like the `.thicker` type badges on the cards,
+   so it stays legible on the pale type colours (electric, steel, normal). */
+.af-tile__gem svg {
+  width: 23px;
+  height: 23px;
+  color: #fff;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7))
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+
+.af-tile__label {
+  font-size: 15px;
+  line-height: 1.1;
+  letter-spacing: 0.4px;
+}
+
+.af-tile__check {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--type-edge);
+  box-shadow: 0 0 0 2px #0a141e;
+  color: #06121d;
+  transform: scale(0);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.af-tile__check svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3.4;
+}
+
+.af-tile[aria-pressed="true"] .af-tile__check {
+  transform: scale(1);
+}
+
+.af-tile__ring {
+  position: absolute;
+  inset: -1.5px;
+  border: 2px solid var(--type-edge);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Region chips -------------------------------------------------------- */
+
+.af-regions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.af-region {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+  overflow: hidden;
+  border: 1.5px solid rgba(67, 106, 150, 0.55);
+  border-radius: 12px;
+  background: rgba(10, 20, 30, 0.55);
+  cursor: pointer;
+  transition:
+    background-color 0.22s,
+    border-color 0.22s,
+    box-shadow 0.22s;
+}
+
+@media (hover: hover) {
+  .af-region:hover {
+    border-color: rgba(155, 225, 255, 0.75);
+    background: rgba(20, 36, 54, 0.75);
+  }
+}
+
+.af-region[aria-pressed="true"] {
+  border-color: var(--af-glow);
+  background: linear-gradient(
+    180deg,
+    rgba(155, 225, 255, 0.22),
+    rgba(67, 106, 150, 0.24)
+  );
+  box-shadow:
+    0 0 0 1px rgba(155, 225, 255, 0.55),
+    0 0 16px rgba(155, 225, 255, 0.3),
+    inset 0 0 14px rgba(155, 225, 255, 0.14);
+}
+
+/* A streak of light crosses the chip each time it is switched on. */
+.af-region::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(232, 249, 255, 0.5),
+    transparent
+  );
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-120%) skewX(-18deg);
+}
+
+.af-region[aria-pressed="true"]::after {
+  animation: af-sweep 0.6s ease-out;
+}
+
+.af-region__name {
+  color: #e6f1fa;
+  font-size: 19px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  transition: color 0.22s;
+}
+
+.af-region[aria-pressed="true"] .af-region__name {
+  color: #fff;
+}
+
+.af-region__meta {
+  color: rgba(179, 234, 254, 0.88);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.6px;
+  transition: color 0.22s;
+}
+
+.af-region[aria-pressed="true"] .af-region__meta {
+  color: var(--af-label);
+}
+
+/* --- Ability select ------------------------------------------------------ */
+
+.af-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 48px;
+  padding-right: 7px;
+  border: 1.5px solid var(--af-line);
+  border-radius: 24px;
+  background: rgba(3, 8, 14, 0.72);
+  box-shadow: inset 0 0 14px rgba(67, 106, 150, 0.25);
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+.af-select[data-open="true"] {
+  border-color: var(--af-glow);
+  box-shadow:
+    0 0 0 3px rgba(155, 225, 255, 0.14),
+    0 0 18px rgba(155, 225, 255, 0.28),
+    inset 0 0 14px rgba(67, 106, 150, 0.3);
+}
+
+@media (hover: hover) {
+  .af-select:hover {
+    border-color: var(--af-glow);
+  }
+}
+
+/* The button spans the whole field. Everything the field shows lies on top of
+   it and lets clicks fall through, apart from the controls of its own. */
+.af-select__trigger {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  cursor: pointer;
+}
+
+.af-select__trigger:focus-visible {
+  outline: none;
+}
+
+.af-select:has(.af-select__trigger:focus-visible) {
+  outline: 2px solid var(--af-glow);
+  outline-offset: 2px;
+}
+
+.af-select__content {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding-left: 22px;
+  overflow: hidden;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  /* Lets a tag cap its own width against this box (`cqi` below). */
+  container-type: inline-size;
+}
+
+.af-select[data-filled="true"] .af-select__content {
+  padding-left: 8px;
+}
+
+.af-select__placeholder {
+  overflow: hidden;
+  color: var(--af-placeholder);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Never shrinks: the tags keep their natural width, so the script can measure
+   how many of them fit. */
+.af-select__tags {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.af-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  /* Even the longest name leaves room for the "+N" badge next to it. */
+  max-width: calc(100cqi - 46px);
+  height: 30px;
+  padding: 0 3px 0 12px;
+  border: 1px solid rgba(155, 225, 255, 0.45);
+  border-radius: 15px;
+  background: rgba(155, 225, 255, 0.14);
+  color: #fff;
+  font-size: 16px;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  /* Plays when a tag mounts, i.e. when its ability has just been picked. */
+  animation: af-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* Tags that don't fit stay measurable, but out of sight and out of reach. */
+.af-tag[data-overflow="true"] {
+  position: absolute;
+  visibility: hidden;
+}
+
+.af-tag__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.af-tag__remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--af-label);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+@media (hover: hover) {
+  .af-tag__remove:hover {
+    background: var(--af-accent);
+    color: var(--af-on-accent);
+  }
+}
+
+.af-tag__remove svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+.af-select__more {
+  flex: none;
+  min-width: 40px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: var(--af-accent);
+  box-shadow: 0 0 10px rgba(155, 225, 255, 0.45);
+  color: var(--af-on-accent);
+  font-size: 15px;
+  line-height: 24px;
+  letter-spacing: 0;
+  text-align: center;
+  animation: af-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.af-select__clear {
+  position: relative;
+}
+
+.af-select__chevron {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid var(--af-line);
+  border-radius: 50%;
+  color: var(--af-label);
+  pointer-events: none;
+  transition:
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.af-select[data-open="true"] .af-select__chevron {
+  border-color: var(--af-glow);
+  color: #fff;
+}
+
+@media (hover: hover) {
+  .af-select:hover .af-select__chevron {
+    border-color: var(--af-glow);
+    color: #fff;
+  }
+}
+
+.af-select__chevron svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.af-select[data-open="true"] .af-select__chevron svg {
+  transform: rotate(180deg);
+}
+
+.af-hint {
+  margin-top: -2px;
+  padding-left: 22px;
+  color: var(--af-muted);
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: 0.4px;
+}
+
+/* Popovers are portalled here so the scrolling body can't clip them. */
+.af-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.af-layer > * {
+  pointer-events: auto;
+}
+
+.af-popover-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.af-popover {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1.5px solid rgba(112, 172, 232, 0.6);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #0d1c2c, #07111b);
+  box-shadow:
+    0 20px 44px rgba(0, 0, 0, 0.65),
+    0 0 22px rgba(80, 160, 235, 0.28),
+    inset 0 0 26px rgba(67, 106, 150, 0.18);
+  font-size: 18px;
+}
+
+.af-popover:focus-visible {
+  outline: none;
+}
+
+.af-popover__search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(67, 106, 150, 0.6);
+  color: var(--af-label);
+}
+
+.af-popover__search svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.af-popover__search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: transparent;
+  color: #fff;
+  font-size: 18px;
+  letter-spacing: 0.4px;
+}
+
+.af-popover__search input:focus-visible {
+  outline: none;
+}
+
+.af-popover__search input::placeholder {
+  color: var(--af-placeholder);
+}
+
+.af-popover__list {
+  /* Offset parent of the rows, so `offsetTop` measures within the list. */
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.af-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 38px;
+  padding: 0 12px 0 10px;
+  border-radius: 10px;
+  color: #d5e4f1;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.af-option[data-active="true"] {
+  background: rgba(155, 225, 255, 0.13);
+  box-shadow: inset 2px 0 0 var(--af-glow);
+  color: #fff;
+}
+
+.af-option[aria-selected="true"] {
+  color: var(--af-glow);
+}
+
+/* What was already selected is listed first; a rule sets it apart. */
+.af-option[data-group-end="true"] {
+  margin-bottom: 11px;
+}
+
+.af-option[data-group-end="true"]::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: -6px;
+  left: 6px;
+  height: 1px;
+  background: rgba(112, 172, 232, 0.4);
+}
+
+.af-option mark {
+  background: transparent;
+  color: var(--af-glow);
+  text-decoration: underline;
+  text-decoration-color: rgba(155, 225, 255, 0.6);
+  text-underline-offset: 3px;
+}
+
+.af-option__box {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid rgba(124, 184, 240, 0.8);
+  border-radius: 6px;
+  background: rgba(3, 8, 14, 0.5);
+  color: var(--af-on-accent);
+  transition:
+    background-color 0.18s,
+    border-color 0.18s,
+    box-shadow 0.18s;
+}
+
+.af-option[aria-selected="true"] .af-option__box {
+  border-color: var(--af-accent);
+  background: var(--af-accent);
+  box-shadow: 0 0 10px rgba(155, 225, 255, 0.5);
+}
+
+.af-option__box svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 3.4;
+  transform: scale(0);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.af-option[aria-selected="true"] .af-option__box svg {
+  transform: scale(1);
+}
+
+.af-option__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.af-option__count {
+  flex: none;
+  color: var(--af-muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.af-popover__empty {
+  padding: 18px 12px;
+  color: var(--af-muted);
+  text-align: center;
+}
+
+.af-popover__footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 16px;
+  border-top: 1px solid rgba(67, 106, 150, 0.6);
+  background: rgba(3, 8, 14, 0.35);
+}
+
+.af-popover__status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--af-muted);
+  font-size: 15px;
+  letter-spacing: 0.4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.af-popover__action {
+  flex: none;
+  height: 30px;
+  padding: 0 15px;
+  border-radius: 15px;
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.af-popover__action--ghost {
+  border: 1.5px solid var(--af-line);
+  color: #fff;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    opacity 0.25s;
+}
+
+.af-popover__action--ghost[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.af-popover__action--primary {
+  background: var(--af-accent);
+  box-shadow: 0 0 10px rgba(155, 225, 255, 0.35);
+  color: var(--af-on-accent);
+  transition:
+    background-color 0.25s,
+    box-shadow 0.25s;
+}
+
+@media (hover: hover) {
+  .af-popover__action--ghost:not([aria-disabled="true"]):hover {
+    border-color: var(--af-glow);
+    background: #000;
+  }
+
+  .af-popover__action--primary:hover {
+    background: #d9f6ff;
+    box-shadow: 0 0 16px rgba(155, 225, 255, 0.6);
+  }
+}
+
+/* --- Pokedex number range ------------------------------------------------- */
+
+.af-readout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+}
+
+.af-readout__field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 12px 6px;
+  border: 1.5px solid rgba(67, 106, 150, 0.6);
+  border-radius: 10px;
+  background: rgba(3, 8, 14, 0.72);
+  color: var(--af-muted);
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  cursor: text;
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+@media (hover: hover) {
+  .af-readout__field:hover {
+    border-color: rgba(155, 225, 255, 0.75);
+  }
+}
+
+.af-readout__field:focus-within,
+.af-readout__field[data-active="true"] {
+  border-color: var(--af-glow);
+  box-shadow:
+    0 0 0 3px rgba(155, 225, 255, 0.14),
+    0 0 14px rgba(155, 225, 255, 0.3);
+}
+
+.af-readout__input {
+  width: 4ch;
+  background: transparent;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+.af-readout__input:focus-visible {
+  outline: none;
+}
+
+.af-readout__dash {
+  width: 18px;
+  height: 1.5px;
+  background: var(--af-line);
+}
+
+.af-range {
+  position: relative;
+  height: 28px;
+  margin-top: -2px;
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.af-range__track {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--af-thumb) / 2);
+  left: calc(var(--af-thumb) / 2);
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 3px;
+  background: rgba(67, 106, 150, 0.4);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.af-range__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #6fc8f7, #c9f1ff);
+  box-shadow: 0 0 10px rgba(155, 225, 255, 0.7);
+  /* The entrance grows it out of its left end. */
+  transform-origin: 0 50%;
+  transition:
+    left 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    right 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.af-range__thumb {
+  position: absolute;
+  top: 50%;
+  width: var(--af-thumb);
+  height: var(--af-thumb);
+  margin: calc(var(--af-thumb) / -2) 0 0 calc(var(--af-thumb) / -2);
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: pan-y;
+  transition: left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* While dragging, the thumb has to stick to the pointer. */
+.af-range[data-dragging="true"] .af-range__thumb,
+.af-range[data-dragging="true"] .af-range__fill {
+  transition: none;
+}
+
+.af-range[data-dragging="true"],
+.af-range[data-dragging="true"] .af-range__thumb {
+  cursor: grabbing;
+}
+
+.af-range__thumb[data-active="true"] {
+  z-index: 1;
+}
+
+.af-range__thumb:focus-visible {
+  outline: none;
+}
+
+.af-range__knob {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--af-accent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #e8f9ff 0 3px, #0b1a2a 4px);
+  box-shadow:
+    0 0 10px rgba(155, 225, 255, 0.55),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+  transition:
+    box-shadow 0.25s,
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (hover: hover) {
+  .af-range__thumb:hover .af-range__knob {
+    transform: scale(1.12);
+  }
+}
+
+.af-range__thumb:focus-visible .af-range__knob,
+.af-range__thumb[data-active="true"] .af-range__knob {
+  box-shadow:
+    0 0 0 5px rgba(155, 225, 255, 0.2),
+    0 0 16px rgba(155, 225, 255, 0.8),
+    0 2px 5px rgba(0, 0, 0, 0.6);
+  transform: scale(1.2);
+}
+
+/* Region scale under the track: one segment per region, by Pokedex range. */
+.af-scale {
+  position: relative;
+  height: 18px;
+  margin: 0 calc(var(--af-thumb) / 2);
+}
+
+.af-scale__segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-left: 1px solid rgba(67, 106, 150, 0.7);
+  color: rgba(179, 234, 254, 0.5);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  transition:
+    color 0.25s,
+    opacity 0.25s,
+    text-shadow 0.25s;
+}
+
+.af-scale__segment:last-child {
+  border-right: 1px solid rgba(67, 106, 150, 0.7);
+}
+
+.af-scale__segment[data-in-range="false"] {
+  opacity: 0.4;
+}
+
+.af-scale__segment[data-selected="true"] {
+  color: #fff;
+  text-shadow: 0 0 8px var(--af-glow);
+}
+
+/* --- Scrollbars ---------------------------------------------------------- */
+
+.af-body,
+.af-popover__list {
+  scrollbar-color: var(--af-line) transparent;
+  scrollbar-width: thin;
+}
+
+/* Chromium and Safari can do better than the standard thin bar (no arrow
+   buttons), but only honour these pseudo-elements when the standard
+   properties above are back to `auto`. */
+@supports selector(::-webkit-scrollbar) {
+  .af-body,
+  .af-popover__list {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
+
+  .af-body::-webkit-scrollbar,
+  .af-popover__list::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .af-body::-webkit-scrollbar-thumb,
+  .af-popover__list::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background: var(--af-line);
+  }
+
+  .af-body::-webkit-scrollbar-thumb:hover,
+  .af-popover__list::-webkit-scrollbar-thumb:hover {
+    background: #5d8ec4;
+  }
+}
+
+/* ==========================================================================
+ * Footer
+ * ========================================================================== */
+
+.af-footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 34px 14px;
+  border-top: 1px solid rgba(67, 106, 150, 0.45);
+  background: linear-gradient(180deg, rgba(5, 11, 18, 0.3), rgba(5, 11, 18, 0.75));
+}
+
+.af-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 28px;
+  border-radius: 25px;
+  font-size: 21px;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.af-btn--ghost {
+  min-width: 164px;
+  border: 2px solid var(--af-line);
+  color: #fff;
+  transition:
+    background-color 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s,
+    opacity 0.3s;
+}
+
+@media (hover: hover) {
+  .af-btn--ghost:hover {
+    border-color: var(--af-glow);
+    background: #000;
+    box-shadow: 0 0 16px rgba(155, 225, 255, 0.3);
+  }
+}
+
+.af-btn--ghost svg {
+  width: 20px;
+  height: 20px;
+  color: var(--af-label);
+}
+
+.af-btn--ghost[aria-disabled="true"] {
+  border-color: var(--af-line);
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.45;
+}
+
+.af-btn--primary {
+  position: relative;
+  min-width: 320px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #dcf6ff 0%, #a6e3ff 52%, #7fcff7 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -3px 8px rgba(20, 110, 170, 0.35),
+    0 0 0 1px rgba(155, 225, 255, 0.5),
+    0 8px 26px rgba(70, 170, 240, 0.35),
+    0 0 34px rgba(120, 205, 255, 0.22);
+  color: var(--af-on-accent);
+  transition:
+    box-shadow 0.3s,
+    filter 0.3s,
+    opacity 0.3s;
+}
+
+@media (hover: hover) {
+  .af-btn--primary:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -3px 8px rgba(20, 110, 170, 0.35),
+      0 0 0 1px rgba(200, 240, 255, 0.8),
+      0 10px 30px rgba(70, 170, 240, 0.5),
+      0 0 44px rgba(120, 205, 255, 0.4);
+    filter: brightness(1.05);
+  }
+}
+
+.af-btn--primary::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.75),
+    transparent
+  );
+  pointer-events: none;
+  transform: translateX(-130%) skewX(-18deg);
+}
+
+@media (hover: hover) {
+  .af-btn--primary:hover::after {
+    animation: af-shine 0.9s ease-out;
+  }
+}
+
+.af-btn--primary[aria-disabled="true"] {
+  background: linear-gradient(180deg, #5b7186, #40546a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  color: #cfdce8;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.af-btn--primary[aria-disabled="true"]::after {
+  animation: none;
+}
+
+.af-btn__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.af-btn__count {
+  display: inline-block;
+  min-width: 1ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.af-btn--primary svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.4;
+}
+
+@keyframes af-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.6);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes af-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes af-sweep {
+  0% {
+    opacity: 1;
+    transform: translateX(-120%) skewX(-18deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(340%) skewX(-18deg);
+  }
+}
+
+@keyframes af-shine {
+  0% {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+
+  100% {
+    transform: translateX(380%) skewX(-18deg);
+  }
+}
+
+/* ==========================================================================
+ * Responsive
+ * ========================================================================== */
+
+/* Short desktop viewports: tighten the vertical rhythm before scrolling. */
+@media (min-width: 640px) and (max-height: 800px) {
+  .af-tab {
+    height: 52px;
+  }
+
+  .af-title {
+    font-size: 28px;
+  }
+
+  .af-close {
+    width: 38px;
+    height: 38px;
+    margin-top: 7px;
+  }
+
+  .af-body {
+    gap: 13px;
+    padding-top: 10px;
+    padding-bottom: 14px;
+  }
+
+  .af-section {
+    gap: 8px;
+  }
+
+  .af-label-row {
+    min-height: 26px;
+  }
+
+  .af-search {
+    height: 46px;
+  }
+
+  .af-search__submit {
+    width: 36px;
+    height: 36px;
+  }
+
+  .af-tile {
+    padding-top: 6px;
+    padding-bottom: 5px;
+  }
+
+  .af-region {
+    height: 44px;
+  }
+
+  .af-footer {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .af-btn {
+    height: 46px;
+  }
+}
+
+@media (max-width: 860px) {
+  .af-body {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .af-footer {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .af-split {
+    gap: 20px 24px;
+  }
+}
+
+/* Too narrow for the results panel to be a single row: the count and
+   "Clear all" share the first one, and the chips get a row of their own. */
+@media (max-width: 899.98px) {
+  .af-active {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 12px;
+    width: 100%;
+    padding: 12px 14px 14px;
+  }
+
+  .af-active__divider {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    width: auto;
+    height: 1px;
+    margin: 0;
+    background: linear-gradient(
+      90deg,
+      rgba(112, 172, 232, 0),
+      rgba(112, 172, 232, 0.65),
+      rgba(112, 172, 232, 0)
+    );
+  }
+
+  .af-active__chips {
+    grid-row: 3;
+    grid-column: 1 / -1;
+  }
+
+  .af-active__clear {
+    grid-row: 1;
+    grid-column: 2;
+  }
+}
+
+/* Phones: the dialog becomes a sheet anchored to the bottom edge. */
+@media (max-width: 639.98px) {
+  .af-scope {
+    --af-radius: 20px;
+  }
+
+  .af-dialog[open] {
+    place-items: end center;
+  }
+
+  .af-panel {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+  }
+
+  .af-surface {
+    border-width: 1.5px 0 0;
+    border-radius: var(--af-radius) var(--af-radius) 0 0;
+  }
+
+  .af-frame,
+  .af-orbit {
+    display: none;
+  }
+
+  .af-tab {
+    height: 54px;
+    padding: 0 54px 0 18px;
+  }
+
+  .af-tab__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Shrinks on the narrowest phones, so the plate never pushes the close
+     button off the sheet. */
+  .af-title {
+    font-size: clamp(21px, 6.8vw, 25px);
+  }
+
+  .af-close {
+    width: 38px;
+    height: 38px;
+    margin: 8px 10px 0 0;
+  }
+
+  .af-body {
+    gap: 18px;
+    padding: 14px 16px 18px;
+  }
+
+  .af-label {
+    font-size: 19px;
+  }
+
+  .af-search {
+    height: 48px;
+    padding-left: 18px;
+  }
+
+  .af-search__input {
+    font-size: 18px;
+  }
+
+  .af-search__submit {
+    width: 36px;
+    height: 36px;
+  }
+
+  .af-tiles {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .af-tile {
+    padding: 8px 1px 7px;
+  }
+
+  .af-tile__gem {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+
+  .af-tile__gem svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .af-tile__label {
+    font-size: 13px;
+    letter-spacing: 0.2px;
+  }
+
+  .af-regions {
+    gap: 7px;
+  }
+
+  .af-region__name {
+    font-size: 17px;
+    letter-spacing: 0.2px;
+  }
+
+  /* Four chips per row only leave room for the number range. */
+  .af-region__generation {
+    display: none;
+  }
+
+  .af-region__meta {
+    font-size: 12px;
+    letter-spacing: 0.2px;
+  }
+
+  .af-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .af-footer {
+    gap: 10px;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .af-btn {
+    height: 50px;
+    padding: 0 16px;
+    font-size: 19px;
+  }
+
+  .af-btn--ghost {
+    flex: none;
+    min-width: 0;
+  }
+
+  .af-btn--primary {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .af-toolbar {
+    gap: 10px;
+  }
+
+  /* Next to the search bar there is only room for the icon; the count of
+     applied filters rides on its corner. */
+  .af-trigger {
+    justify-content: center;
+    width: 40px;
+    padding: 0;
+  }
+
+  .af-trigger__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .af-trigger__badge {
+    position: absolute;
+    top: -9px;
+    right: -9px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    box-shadow:
+      0 0 0 2px #0a141e,
+      0 0 10px rgba(155, 225, 255, 0.6);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  /* The results panel stacks and centres: count, chips, "Clear all". The
+     chips keep the full width of the panel, so that they wrap. */
+  .af-active {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 12px 14px;
+    border-radius: 18px;
+  }
+
+  .af-active__count {
+    justify-self: center;
+  }
+
+  .af-active__divider {
+    margin: 0 8px;
+  }
+
+  .af-active__chips {
+    justify-content: center;
+  }
+
+  .af-active__clear {
+    grid-row: 4;
+    grid-column: 1;
+    justify-self: center;
+  }
+}
+
+/* Narrow phones: "Clear" shrinks to its icon so the result count fits. */
+@media (max-width: 419.98px) {
+  .af-btn--ghost {
+    width: 50px;
+    padding: 0;
+  }
+
+  .af-btn--ghost .af-btn__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .af-tile__label {
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .af-trigger__badge,
+  .af-active,
+  .af-active__number,
+  .af-chip,
+  .af-tag,
+  .af-select__more,
+  .af-region[aria-pressed="true"]::after,
+  .af-btn--primary:hover::after {
+    animation: none;
+  }
+
+  .af-knob,
+  .af-close svg,
+  .af-match__thumb,
+  .af-tile__lift,
+  .af-tile__check,
+  .af-select__chevron svg,
+  .af-option__box svg,
+  .af-range__knob,
+  .af-range__thumb,
+  .af-range__fill {
+    transition: none;
+  }
+}

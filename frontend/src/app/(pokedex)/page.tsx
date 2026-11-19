@@ -6,6 +6,8 @@ import {
   useIsPokemonListLoaded,
   useScrollTopPosition,
 } from "@/stores";
+import { ActiveFilterBar } from "./_components/advanced-filter/active-filter-bar";
+import { AdvancedFilter } from "./_components/advanced-filter/advanced-filter";
 import { PokemonList } from "./_components/pokemon-list";
 import { SearchBar } from "./_components/search-bar";
 
@@ -49,7 +51,11 @@ export default function HomePage() {
         </div>
       ) : (
         <div className="pokemon-container max-w-full w-[92vw] mx-auto relative">
-          <SearchBar />
+          <div className="af-toolbar">
+            <SearchBar />
+            <AdvancedFilter />
+          </div>
+          <ActiveFilterBar />
           <PokemonList />
         </div>
       )}

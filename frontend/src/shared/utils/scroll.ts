@@ -38,3 +38,26 @@ export const smoothScrollTo = (
     run();
   }
 };
+
+/**
+ * Freeze page scrolling while a modal is open. The body is padded by the
+ * width of the scrollbar that disappears, so the page behind the modal
+ * doesn't jump sideways. Returns a function that restores the previous state.
+ */
+export const lockPageScroll = (): (() => void) => {
+  const root = document.documentElement;
+  const body = document.body;
+  const scrollbarWidth = window.innerWidth - root.clientWidth;
+  const previous = {
+    overflow: root.style.overflow,
+    paddingRight: body.style.paddingRight,
+  };
+
+  root.style.overflow = "hidden";
+  if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
+
+  return () => {
+    root.style.overflow = previous.overflow;
+    body.style.paddingRight = previous.paddingRight;
+  };
+};

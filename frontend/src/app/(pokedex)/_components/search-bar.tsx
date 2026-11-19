@@ -10,14 +10,14 @@ import {
   useState,
 } from "react";
 import { LazyImage } from "@/shared/components/lazy-image/lazy-image";
-import {
-  filterPokemonByName,
-  mapPokemon,
-} from "@/shared/selectors/pokemon.selectors";
+import { filterPokemon } from "@/shared/selectors/pokemon-filter.selectors";
+import { mapPokemon } from "@/shared/selectors/pokemon.selectors";
 import { DEFAULT_PAGE_LIMIT } from "@/shared/utils/pagination";
 import {
+  usePokemonFilters,
   usePokemonList,
-  useSearchTerm,
+  useSearchInput,
+  useSetSearchInput,
   useSetSearchTerm,
 } from "@/stores";
 import type { Pokemon } from "@/types/pokemon.types";
@@ -32,26 +32,32 @@ const capitalizeWords = (value: string): string =>
     .join(" ");
 
 export function SearchBar() {
-  const submittedSearchTerm = useSearchTerm();
+  const filters = usePokemonFilters();
+  const submittedSearchTerm = filters.query;
   const setSubmittedSearchTerm = useSetSearchTerm();
   const allPokemon = usePokemonList();
 
-  const [pokemonName, setPokemonName] = useState(submittedSearchTerm);
+  // The typed text lives in the store so the advanced filter dialog can pick
+  // up a term that hasn't been submitted yet, and so applying filters there
+  // keeps this box in sync.
+  const pokemonName = useSearchInput();
+  const setPokemonName = useSetSearchInput();
   const [debouncedTerm, setDebouncedTerm] = useState("");
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [visibleCount, setVisibleCount] = useState(DEFAULT_PAGE_LIMIT);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Filter the cached `?all=true` list against the debounced term locally —
-  // no API roundtrip. The dropdown reveals `visibleCount` items at a time
-  // and grows as the user scrolls to the bottom of the panel.
+  // no API roundtrip. Suggestions preview what submitting would show, so they
+  // respect the other active filters too. The dropdown reveals `visibleCount`
+  // items at a time and grows as the user scrolls to the bottom of the panel.
   const matchedPokemon: Pokemon[] = useMemo(() => {
     const trimmed = debouncedTerm.trim();
     if (!trimmed) return [];
-    return filterPokemonByName(allPokemon, trimmed)
+    return filterPokemon(allPokemon, { ...filters, query: trimmed })
       .map(mapPokemon)
       .filter((item): item is Pokemon => item !== null);
-  }, [allPokemon, debouncedTerm]);
+  }, [allPokemon, debouncedTerm, filters]);
 
   const dropdownItems = useMemo(
     () => matchedPokemon.slice(0, visibleCount),
@@ -72,13 +78,29 @@ export function SearchBar() {
     setShowSearchBar(value.length > 0);
   };
 
-  const handleSubmitSearch = useCallback(() => {
-    const term = pokemonName.trim();
-    if (term !== submittedSearchTerm) {
-      setSubmittedSearchTerm(term);
-    }
-    setShowSearchBar(false);
-  }, [pokemonName, setSubmittedSearchTerm, submittedSearchTerm]);
+  const submitSearch = useCallback(
+    (value: string) => {
+      const term = value.trim();
+      if (term !== submittedSearchTerm) {
+        setSubmittedSearchTerm(term);
+      }
+      setShowSearchBar(false);
+    },
+    [setSubmittedSearchTerm, submittedSearchTerm]
+  );
+
+  const handleSubmitSearch = useCallback(
+    () => submitSearch(pokemonName),
+    [pokemonName, submitSearch]
+  );
+
+  // Picking a suggestion fills the box with that name and searches for it
+  // straight away. The name is passed along because the text in the store
+  // only updates on the next render.
+  const handleSelectSuggestion = (name: string) => {
+    setPokemonName(name);
+    submitSearch(name);
+  };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") handleSubmitSearch();
@@ -128,7 +150,7 @@ export function SearchBar() {
   return (
     <div
       ref={containerRef}
-      className="searchbar-container relative w-[90%] max-w-[500px] mx-auto"
+      className="searchbar-container relative min-w-0 flex-[0_1_500px]"
     >
       <input
         type="text"
@@ -184,10 +206,7 @@ export function SearchBar() {
                 return (
                   <div
                     className="flex justify-between items-center px-[30px] cursor-pointer border-[1.2px] border-[#8b949e] border-t-0"
-                    onClick={() => {
-                      setPokemonName(value.name);
-                      setShowSearchBar(false);
-                    }}
+                    onClick={() => handleSelectSuggestion(value.name)}
                     key={value.id}
                   >
                     <div className="pokemon-thumbnail w-[100px] h-[100px]">
